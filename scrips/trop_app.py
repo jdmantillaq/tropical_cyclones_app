@@ -13,13 +13,34 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
 from dash.exceptions import PreventUpdate
 from dash_bootstrap_templates import load_figure_template
+import os
+import requests
 
 
 # %%
 
 file_tc = '../data/ibtracs.since1980.list.v04r00.csv'
-columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN', 'NAME', 'ISO_TIME',
-                     'NATURE', 'LAT', 'LON', 'USA_WIND', 'USA_PRES']
+url = 'https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/csv/ibtracs.since1980.list.v04r00.csv'
+
+# Check if the file exists
+if not os.path.exists(file_tc):
+    # Create the directory if it doesn't exist
+    os.makedirs(os.path.dirname(file_tc), exist_ok=True)
+
+    # Download the file
+    response = requests.get(url)
+    with open(file_tc, 'wb') as f:
+        f.write(response.content)
+    print("File downloaded successfully.")
+else:
+    print("File already exists.")
+
+
+# %%
+columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN',
+                     'NAME', 'ISO_TIME', 'NATURE', 'LAT', 'LON', 'USA_WIND',
+                     'USA_PRES']
+
 tropical_cyclones = pd.read_csv(
     file_tc, skiprows=[1], usecols=columns_to_import)
 tropical_cyclones = pd.read_csv(file_tc, skiprows=[1])
@@ -243,7 +264,7 @@ def fig_map(basin, season, disturbance, start_date, end_date):
     df['SIZE'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
     df['CAT'] = df['USA_SSHS'].apply(lambda x: category_dict.get(x))
 
-    title = f'Tropical Cyclone: {basin_list[basin]} season: {season}'
+    title = f'{season}-{basin_list[basin]} hurricane season'
     figure = None
     hover_data = ['NAME', 'LAT',  'LON', 'CAT',
                   'USA_WIND', 'USA_PRES', 'ISO_TIME']
@@ -291,7 +312,7 @@ def fig_map(basin, season, disturbance, start_date, end_date):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8335, host='0.0.0.0')
+    app.run_server(debug=True, port=8335)
 
 # %%
 # basin = 'AL'
