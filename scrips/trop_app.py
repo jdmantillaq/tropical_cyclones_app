@@ -38,6 +38,31 @@ subbasin_list = [{'value': 'CS', 'label': 'Caribbean Sea'},
                  {'value': 'WA', 'label': 'Western Australia'},
                  {'value': 'EA', 'label': 'Eastern Australia'}]
 
+
+tc_colors = {
+    -1: '#3BDBE8',
+    0: '#3185D3',
+    1: '#F2E205',
+    2: '#F28705',
+    3: '#D90404',
+    4: '#D84DDB',
+    5: '#8B0088'}
+color_other = 'gray'
+#  -5        -4      -3      -2
+custom_color_scale = ['black', 'gray', 'gray', 'gray',
+                      '#3BDBE8', '#3185D3', '#F2E205', '#F28705',
+                      '#D90404', '#D84DDB', '#8B0088']
+
+size_marker_TC = {
+    -1: 6,
+    0: 6.5,
+    1: 7,
+    2: 7.5,
+    3: 8,
+    4: 8.5,
+    5: 9,
+}
+
 season_list = tropical_cyclones.SEASON.unique()
 # %%
 
@@ -159,23 +184,36 @@ def fig_map(subbasin, season, tc):
 
     df = tropical_cyclones.query(
         'SUBBASIN == @subbasin and SEASON == @season and NUMBER in @tc')
+
+    df['color_tc'] = df['USA_SSHS'].apply(
+        lambda x: tc_colors.get(x, color_other))
+
+    df['size'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
+
     title = f'Tropical Cyclone Paths for Subbasin: {subbasin}, Season: {season}'
     figure = None
     for i, tc_i in enumerate(tc):
         df_i = df.query(f'NUMBER == {tc_i}')
         if i == 0:
-            figure = px.line_mapbox(df_i, lat="LAT", lon="LON", zoom=4,
-                                    mapbox_style="carto-positron",
-                                    hover_data=[
-                                        'NAME', 'STORM_SPEED', 'ISO_TIME'],
-                                    height=800,
-                                    color_discrete_sequence=[colors[i]])
+            figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON", zoom=4,
+                                       mapbox_style="carto-positron",
+                                       hover_data=['NAME', 'USA_WIND', 'USA_PRES',
+                                                   'ISO_TIME'],
+                                       height=800,
+                                       color='USA_SSHS',
+                                       color_continuous_scale=custom_color_scale,
+                                       range_color=(-5, 5),
+                                       size='size', size_max=7.5
+                                       )
 
         else:
-            figure.add_trace(px.line_mapbox(
+            figure.add_trace(px.scatter_mapbox(
                 df_i, lat="LAT", lon="LON", zoom=4,
-                hover_data=['NAME', 'STORM_SPEED', 'ISO_TIME'],
-                color_discrete_sequence=[colors[i]]).data[0])
+                hover_data=['NAME', 'USA_WIND', 'USA_PRES', 'ISO_TIME'],
+                color='USA_SSHS',
+                color_continuous_scale=custom_color_scale,
+                range_color=(-5, 5), size='size', size_max=7.5,
+            ).data[0])
     figure.update_traces(mode="markers+lines")
     return title, figure
 
@@ -210,9 +248,23 @@ season = 2023
 query = (tropical_cyclones.SUBBASIN == basin) & (
     tropical_cyclones.SEASON == season)
 df = tropical_cyclones[query]
-tc = [22]
-df_i = df.query('NUMBER in @tc')
-# %%
-px.scatter_mapbox(df_i, lat="LAT", lon="LON", zoom=1,
-                  mapbox_style="carto-positron")
+df.head()
+df['color_tc'] = df['USA_SSHS'].apply(lambda x: tc_colors.get(x, color_other))
+
+
+df['size'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
+
+
+px.scatter_mapbox(df, lat="LAT", lon="LON", zoom=4,
+                  mapbox_style="carto-positron",
+                  hover_data=['NAME', 'USA_WIND',
+                              'USA_SSHS', 'USA_PRES',
+                              'ISO_TIME'],
+                  height=800,
+                  color='USA_SSHS',  # Specify the column you want to map colors to
+                  color_continuous_scale=custom_color_scale,
+                  range_color=(-5, 5),
+                  size='size',
+                  size_max=4)
+
 # %%
