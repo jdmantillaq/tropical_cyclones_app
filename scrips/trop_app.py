@@ -14,6 +14,8 @@ from dash.dependencies import Output, Input
 from dash.exceptions import PreventUpdate
 from dash_bootstrap_templates import load_figure_template
 
+
+
 # %%
 
 file_tc = '../data/ibtracs.since1980.list.v04r00.csv'
@@ -22,21 +24,21 @@ tropical_cyclones['ISO_TIME'] = pd.to_datetime(tropical_cyclones['ISO_TIME'])
 
 
 # %%
-basin_list = [{'value': 'NA', 'label': 'North Atlantic'},
-              {'value': 'EP', 'label': 'Eastern North Pacific'},
-              {'value': 'WP', 'label': 'Western North Pacific'},
-              {'value': 'NI', 'label': 'North Indian'},
-              {'value': 'SI', 'label': 'South Indian'},
-              {'value': 'SP', 'label': 'Southern Pacific'},
-              {'value': 'SA', 'label': 'South Atlantic'}]
+basin_list = {'NA': 'North Atlantic',
+ 'EP': 'Eastern North Pacific',
+ 'WP': 'Western North Pacific',
+ 'NI': 'North Indian',
+ 'SI': 'South Indian',
+ 'SP': 'Southern Pacific',
+ 'SA': 'South Atlantic'}
 
-subbasin_list = [{'value': 'CS', 'label': 'Caribbean Sea'},
-                 {'value': 'GM', 'label': 'Gulf of Mexico'},
-                 {'value': 'CP', 'label': 'Central Pacific'},
-                 {'value': 'BB', 'label': 'Bay of Bengal'},
-                 {'value': 'AS', 'label': 'Arabian Sea'},
-                 {'value': 'WA', 'label': 'Western Australia'},
-                 {'value': 'EA', 'label': 'Eastern Australia'}]
+subbasin_list ={'CS': 'Caribbean Sea',
+ 'GM': 'Gulf of Mexico',
+ 'CP': 'Central Pacific',
+ 'BB': 'Bay of Bengal',
+ 'AS': 'Arabian Sea',
+ 'WA': 'Western Australia',
+ 'EA': 'Eastern Australia'}
 
 
 tc_colors = {
@@ -79,7 +81,9 @@ tab1_content = dbc.Card(
         [dbc.Row([
             dbc.Col([
                 html.P("Select a Basin:"),
-                dcc.Dropdown(id="dropdown_subbasin", options=subbasin_list,
+                dcc.Dropdown(id="dropdown_subbasin",
+                             options=[{'value': i, 'label': j} for i, j 
+                                      in subbasin_list.items()],
                              className="dbc", value="CS"),
                 html.P("Select a Season (year):"),
                 dcc.Dropdown(id="dropdown_season", options=season_list,
@@ -190,15 +194,30 @@ def fig_map(subbasin, season, tc):
 
     df['size'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
 
-    title = f'Tropical Cyclone Paths for Subbasin: {subbasin}, Season: {season}'
+    title = f'Tropical Cyclone Paths for Subbasin: {subbasin_list[subbasin]}, Season: {season}'
     figure = None
+    hover_data = ['NAME', 'LAT', 'LON', 'USA_WIND', 'USA_PRES', 'ISO_TIME']
+    # # Define a custom hover template
+    # hover_template = "<b>Name:</b> %{customdata[0]}<br>" + \
+    #                  "<b>Lat:</b> %{customdata[1]:.2f}, " + \
+    #                  "<b>Lon:</b> %{customdata[2]:.2f}<br>" + \
+    #                  "<b>Wind Speed:</b> %{customdata[3]} knots <br>" + \
+    #                  "<b>Pressure:</b> %{customdata[4]} mb <br>" + \
+    #                  "<b>Time:</b> %{customdata[5]}<extra></extra>"
+                     
+    hover_template = "<b><span style='font-size: 16px;'>Name:</span></b> %{customdata[0]}<br>" + \
+                "<b><span style='font-size: 16px;'>Lat:</span></b> %{customdata[1]:.2f}, " + \
+                "<b><span style='font-size: 16px;'>Lon:</span></b> %{customdata[2]:.2f}<br>" + \
+                "<b><span style='font-size: 16px;'>Wind Speed:</span></b> %{customdata[3]} knots <br>" + \
+                "<b><span style='font-size: 16px;'>Pressure:</span></b> %{customdata[4]} mb <br>" + \
+                "<b><span style='font-size: 16px;'>Time:</span></b> %{customdata[5]}<extra></extra>"
+        
     for i, tc_i in enumerate(tc):
         df_i = df.query(f'NUMBER == {tc_i}')
         if i == 0:
             figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON", zoom=4,
                                        mapbox_style="carto-positron",
-                                       hover_data=['NAME', 'USA_WIND', 'USA_PRES',
-                                                   'ISO_TIME'],
+                                       hover_data=hover_data,
                                        height=800,
                                        color='USA_SSHS',
                                        color_continuous_scale=custom_color_scale,
@@ -209,12 +228,18 @@ def fig_map(subbasin, season, tc):
         else:
             figure.add_trace(px.scatter_mapbox(
                 df_i, lat="LAT", lon="LON", zoom=4,
-                hover_data=['NAME', 'USA_WIND', 'USA_PRES', 'ISO_TIME'],
+                hover_data=hover_data,
                 color='USA_SSHS',
                 color_continuous_scale=custom_color_scale,
                 range_color=(-5, 5), size='size', size_max=7.5,
             ).data[0])
     figure.update_traces(mode="markers+lines")
+    figure.update_traces(marker=dict(opacity=1))
+    
+    
+                 
+    figure.update_traces(hovertemplate=hover_template)
+
     return title, figure
 
 # def fig_map(subbasin, season, tc):
@@ -255,7 +280,7 @@ df['color_tc'] = df['USA_SSHS'].apply(lambda x: tc_colors.get(x, color_other))
 df['size'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
 
 
-px.scatter_mapbox(df, lat="LAT", lon="LON", zoom=4,
+figure = px.scatter_mapbox(df, lat="LAT", lon="LON", zoom=4,
                   mapbox_style="carto-positron",
                   hover_data=['NAME', 'USA_WIND',
                               'USA_SSHS', 'USA_PRES',
@@ -265,6 +290,16 @@ px.scatter_mapbox(df, lat="LAT", lon="LON", zoom=4,
                   color_continuous_scale=custom_color_scale,
                   range_color=(-5, 5),
                   size='size',
-                  size_max=4)
+                  size_max=4,
+                  )
 
+figure.update_traces(mode="markers+lines")
+figure.update_traces(
+     marker=dict(opacity=1))
+
+#%%
+figure.data.marker.line.width = 4
+figure.data.marker.line.color = "black"
 # %%
+.update_traces(
+     line=dict(dash="dot", width=4),
