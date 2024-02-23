@@ -15,46 +15,46 @@ from dash.exceptions import PreventUpdate
 from dash_bootstrap_templates import load_figure_template
 
 
-
 # %%
 
 file_tc = '../data/ibtracs.since1980.list.v04r00.csv'
 columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN', 'NAME', 'ISO_TIME',
-       'NATURE', 'LAT', 'LON', 'USA_WIND', 'USA_PRES']
-tropical_cyclones = pd.read_csv(file_tc, skiprows=[1], usecols=columns_to_import)
+                     'NATURE', 'LAT', 'LON', 'USA_WIND', 'USA_PRES']
+tropical_cyclones = pd.read_csv(
+    file_tc, skiprows=[1], usecols=columns_to_import)
 tropical_cyclones = pd.read_csv(file_tc, skiprows=[1])
 tropical_cyclones['ISO_TIME'] = pd.to_datetime(tropical_cyclones['ISO_TIME'])
-tropical_cyclones['BASIN'] = tropical_cyclones['USA_ATCF_ID'].apply(lambda x: x[:2])
-tropical_cyclones['TC_ID'] = tropical_cyclones['USA_ATCF_ID'].apply(lambda x: x[2:4])
+tropical_cyclones['BASIN'] = tropical_cyclones['USA_ATCF_ID'].apply(
+    lambda x: x[:2])
+tropical_cyclones['TC_ID'] = tropical_cyclones['USA_ATCF_ID'].apply(
+    lambda x: x[2:4])
 
-#%%
-
-
+# %%
 
 
 # %%
-basin_list = {    
- 'AL': 'North Atlantic',
- 'EP': 'East Pacific',
- 'WP': 'West Pacific',
- 'IO': 'North Indian',
- 'SI': 'South Indian',
- 'SP': 'South Pacific',
- 'SL': 'South Atlantic',
- 'SH': 'Southern Hemisphere',
- 'CP': 'Central Pacific',
- 'AS': 'Arabian Sea',
- 'BB': 'Bay of Bengal'
- }
+basin_list = {
+    'AL': 'North Atlantic',
+    'EP': 'East Pacific',
+    'WP': 'West Pacific',
+    'IO': 'North Indian',
+    'SI': 'South Indian',
+    'SP': 'South Pacific',
+    'SL': 'South Atlantic',
+    'SH': 'Southern Hemisphere',
+    'CP': 'Central Pacific',
+    'AS': 'Arabian Sea',
+    'BB': 'Bay of Bengal'
+}
 
 
-subbasin_list ={'CS': 'Caribbean Sea',
- 'GM': 'Gulf of Mexico',
- 'CP': 'Central Pacific',
- 'BB': 'Bay of Bengal',
- 'AS': 'Arabian Sea',
- 'WA': 'Western Australia',
- 'EA': 'Eastern Australia'}
+subbasin_list = {'CS': 'Caribbean Sea',
+                 'GM': 'Gulf of Mexico',
+                 'CP': 'Central Pacific',
+                 'BB': 'Bay of Bengal',
+                 'AS': 'Arabian Sea',
+                 'WA': 'Western Australia',
+                 'EA': 'Eastern Australia'}
 
 
 tc_colors = {
@@ -87,12 +87,12 @@ category_dict = {
     -3: "Disturbance",
     -2: "Subtropical",
     -1: "Tropical depression",
-     0: "Tropical storm",
-     1: "Category 1",
-     2: "Category 2",
-     3: "Category 3",
-     4: "Category 4",
-     5: "Category 5"
+    0: "Tropical storm",
+    1: "Category 1",
+    2: "Category 2",
+    3: "Category 3",
+    4: "Category 4",
+    5: "Category 5"
 }
 
 season_list = tropical_cyclones.SEASON.unique()
@@ -112,14 +112,16 @@ tab1_content = dbc.Card(
             dbc.Col([
                 html.P("Select a Basin:"),
                 dcc.Dropdown(id="dropdown_basin",
-                             options=[{'value': i, 'label': j} for i, j 
+                             options=[{'value': i, 'label': j} for i, j
                                       in basin_list.items()],
                              className="dbc", value="AL"),
                 html.P("Select a Season (year):"),
                 dcc.Dropdown(id="dropdown_season", options=season_list,
                              className="dbc", value=season_list[-2]),
                 html.P("Select a date range:"),
-                dcc.DatePickerRange(id="date_picker", className='dbc'),
+                dcc.DatePickerRange(id="date_picker", className='dbc',
+                                    display_format='DD/MM/YYYY',
+                                    start_date_placeholder_text='DD/MM/YYYY'),
                 html.P("Select a disturbance:"),
                 dcc.Dropdown(id="dropdown_tc", multi=True, className="dbc")
 
@@ -178,7 +180,6 @@ app.layout = html.Div(
     [Input("dropdown_basin", "value"),
      Input("dropdown_season", "value")])
 def set_country_options(basin, season):
-
     if basin is None:
         raise PreventUpdate
     if season is None:
@@ -190,12 +191,9 @@ def set_country_options(basin, season):
     # df = tropical_cyclones[query]
 
     df = tropical_cyclones.query('BASIN == @basin and SEASON == @season')
-    
-
-    min_date_allowed = df.ISO_TIME.min()
-    max_date_allowed = df.ISO_TIME.max()
+    min_date_allowed = pd.to_datetime(f'{season}-01-01')
+    max_date_allowed = pd.to_datetime(f'{season}-12-31')
     initial_visible_month = df.ISO_TIME.max()
-    #start_date = df.ISO_TIME.max() - pd.Timedelta('10day')
     start_date = df.ISO_TIME.min()
     end_date = df.ISO_TIME.max()
 
@@ -206,17 +204,38 @@ def set_country_options(basin, season):
 
 
 @app.callback(
+    [Output("dropdown_tc", "options", allow_duplicate=True),
+     Output("dropdown_tc", "value", allow_duplicate=True)],
+    [Input("dropdown_basin", "value"),
+     Input("dropdown_season", "value"),
+     Input("date_picker", "start_date"),
+     Input("date_picker", "end_date")], prevent_initial_call=True)
+def set_disturbance_options(basin, season, start_date, end_date):
+    if not all([basin, season, start_date, end_date]):
+        raise PreventUpdate
+    df = tropical_cyclones.query('BASIN == @basin and SEASON == @season')
+    df = df.loc[df["ISO_TIME"].between(start_date, end_date)]
+    disturbance_list = df.TC_ID.unique()
+    return disturbance_list, disturbance_list
+
+
+@app.callback(
     [Output("title_fig1", 'children'),
      Output("graph_tab1", 'figure')],
     [Input("dropdown_basin", "value"),
      Input("dropdown_season", "value"),
-     Input("dropdown_tc", "value"),])
-def fig_map(basin, season, disturbance):
-    if not all([basin, season, disturbance]):
+     Input("dropdown_tc", "value"),
+     Input("date_picker", "start_date"),
+     Input("date_picker", "end_date")],
+)
+def fig_map(basin, season, disturbance, start_date, end_date):
+    if not all([basin, season, disturbance, start_date, end_date]):
         raise PreventUpdate
-    
+
     df = tropical_cyclones.query(
         'BASIN == @basin and SEASON == @season and TC_ID in @disturbance')
+
+    df = df.loc[df["ISO_TIME"].between(start_date, end_date)]
 
     df['color_tc'] = df['USA_SSHS'].apply(
         lambda x: tc_colors.get(x, color_other))
@@ -226,7 +245,8 @@ def fig_map(basin, season, disturbance):
 
     title = f'Tropical Cyclone: {basin_list[basin]} season: {season}'
     figure = None
-    hover_data = ['NAME', 'LAT',  'LON', 'CAT', 'USA_WIND', 'USA_PRES', 'ISO_TIME']
+    hover_data = ['NAME', 'LAT',  'LON', 'CAT',
+                  'USA_WIND', 'USA_PRES', 'ISO_TIME']
 
     hover_template = \
         "<span style='font-size: 16px;'><b>Name:</b> %{customdata[0]}</span><br>" + \
@@ -236,7 +256,7 @@ def fig_map(basin, season, disturbance):
         "<span style='font-size: 16px;'><b>Max Wind Speed:</b> %{customdata[4]} knots</span><br>" + \
         "<span style='font-size: 16px;'><b>Pressure:</b> %{customdata[5]} mb</span><br>" + \
         "<span style='font-size: 16px;'><b>Time:</b> %{customdata[6]}</span><extra></extra>"
-        
+
     for i, dist_i in enumerate(disturbance):
         df_i = df[df.TC_ID == dist_i]
         if i == 0:
@@ -258,7 +278,7 @@ def fig_map(basin, season, disturbance):
                 color_continuous_scale=custom_color_scale,
                 range_color=(-5, 5), size='SIZE', size_max=7.5,
             ).data[0])
-            
+
     # Update the layout with custom colorbar title
     figure.update_layout(coloraxis_colorbar=dict(title="Category"))
 
@@ -268,6 +288,7 @@ def fig_map(basin, season, disturbance):
     figure.update_traces(hovertemplate=hover_template)
 
     return title, figure
+
 
 if __name__ == "__main__":
     app.run_server(debug=True, port=8335, host='0.0.0.0')
@@ -308,7 +329,7 @@ if __name__ == "__main__":
 #             color_continuous_scale=custom_color_scale,
 #             range_color=(-5, 5), size='SIZE', size_max=7.5,
 #         ).data[0])
-        
+
 # # Update the layout with custom colorbar title
 # figure.update_layout(coloraxis_colorbar=dict(title="Category"))
 
