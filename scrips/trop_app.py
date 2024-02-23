@@ -20,7 +20,7 @@ import requests
 # %%
 
 file_tc = '../data/ibtracs.since1980.list.v04r00.csv'
-url = 'https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/csv/ibtracs.since1980.list.v04r00.csv'
+url = 'https://www.ncei.noaa.gov/data/'international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/csv/ibtracs.since1980.list.v04r00.csv'
 
 # Check if the file exists
 if not os.path.exists(file_tc):
