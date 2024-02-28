@@ -17,8 +17,6 @@ import os
 import requests
 
 
-# %%
-
 file_tc = '../data/ibtracs.since1980.list.v04r00.csv'
 url = 'https://www.ncei.noaa.gov/data/'\
     'international-best-track-archive-for-climate-stewardship-ibtracs'\
@@ -38,7 +36,6 @@ else:
     print("File already exists.")
 
 
-# %%
 columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN',
                      'NAME', 'ISO_TIME', 'NATURE', 'LAT', 'LON', 'USA_WIND',
                      'USA_PRES']
@@ -52,10 +49,6 @@ tropical_cyclones['BASIN'] = tropical_cyclones['USA_ATCF_ID'].apply(
 tropical_cyclones['TC_ID'] = tropical_cyclones['USA_ATCF_ID'].apply(
     lambda x: x[2:4])
 
-# %%
-
-
-# %%
 basin_list = {
     'AL': 'North Atlantic',
     'EP': 'East Pacific',
@@ -69,6 +62,20 @@ basin_list = {
     'AS': 'Arabian Sea',
     'BB': 'Bay of Bengal'
 }
+
+centrer_prop = {'AL': {'center': {"lat": 23, "lon": -52},  'zoom': 2.5},
+                'EP': {'center': {"lat": 18, "lon": -115},  'zoom': 3},
+                'WP': {'center': {"lat": 25, "lon": 127},  'zoom': 3},
+                'IO': {'center': {"lat": 5, "lon": 80},  'zoom': 3},
+                'SI': {'center': {"lat": -18, "lon": 80},  'zoom': 3},
+                'SP': {'center': {"lat": -23, "lon": 165},  'zoom': 3},
+                'SH': {'center': {"lat": -10, "lon": 130},  'zoom': 4},
+                'CP': {'center': {"lat": 0, "lon": 180},  'zoom': 2},
+                'AS': {'center': {"lat": 20, "lon": 60},  'zoom': 4},
+                'BB': {'center': {"lat": 20, "lon": 85},  'zoom': 4},
+                }
+
+basin_list_valid = list(tropical_cyclones.BASIN.unique())
 
 
 subbasin_list = {'CS': 'Caribbean Sea',
@@ -208,11 +215,6 @@ def set_country_options(basin, season):
     if season is None:
         raise PreventUpdate
 
-    # query = ((tropical_cyclones.SUBBASIN == subbasin) &
-    #          (tropical_cyclones.SEASON ==
-    #          season))
-    # df = tropical_cyclones[query]
-
     df = tropical_cyclones.query('BASIN == @basin and SEASON == @season')
     min_date_allowed = pd.to_datetime(f'{season}-01-01')
     max_date_allowed = pd.to_datetime(f'{season}-12-31')
@@ -260,7 +262,7 @@ def fig_map(basin, season, disturbance, start_date, end_date):
 
     df = df.loc[df["ISO_TIME"].between(start_date, end_date)]
 
-    df['color_tc'] = df['USA_SSHS'].apply(
+    df['COLOR_TC'] = df['USA_SSHS'].apply(
         lambda x: tc_colors.get(x, color_other))
 
     df['SIZE'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
@@ -283,23 +285,25 @@ def fig_map(basin, season, disturbance, start_date, end_date):
     for i, dist_i in enumerate(disturbance):
         df_i = df[df.TC_ID == dist_i]
         if i == 0:
-            figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON", zoom=4,
+            figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON",
                                        mapbox_style="carto-positron",
                                        hover_data=hover_data,
                                        height=800,
                                        color='USA_SSHS',
                                        color_continuous_scale=custom_color_scale,
                                        range_color=(-5, 5),
-                                       size='SIZE', size_max=7.5
+                                       size='SIZE', size_max=7.5,
+                                       **centrer_prop[basin]
                                        )
 
         else:
             figure.add_trace(px.scatter_mapbox(
-                df_i, lat="LAT", lon="LON", zoom=4,
+                df_i, lat="LAT", lon="LON",
                 hover_data=hover_data,
                 color='USA_SSHS',
                 color_continuous_scale=custom_color_scale,
                 range_color=(-5, 5), size='SIZE', size_max=7.5,
+                **centrer_prop[basin]
             ).data[0])
 
     # Update the layout with custom colorbar title
@@ -314,10 +318,13 @@ def fig_map(basin, season, disturbance, start_date, end_date):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8335)
+    app.run_server(debug=True, port=8335, host='0.0.0.0')
 
 # %%
-# basin = 'AL'
+# ['SH', 'WP', 'EP', 'AL', 'IO', 'CP', 'SL', 'SP', 'SI', 'BB', 'AS']
+
+
+# basin = 'BB'
 # season = 2023
 # query = (tropical_cyclones.BASIN == basin) & (
 #     tropical_cyclones.SEASON == season)
@@ -325,32 +332,36 @@ if __name__ == "__main__":
 # # query = (tropical_cyclones.SEASON == season)
 # df = tropical_cyclones[query]
 # df.head()
-# df['color_tc'] = df['USA_SSHS'].apply(lambda x: tc_colors.get(x, color_other))
+# df['COLOR_TC'] = df['USA_SSHS'].apply(lambda x: tc_colors.get(x, color_other))
+# df['CAT'] = df['USA_SSHS'].apply(lambda x: category_dict.get(x))
+# df['SIZE'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
 
-# df['size'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
+# disturbance = df.TC_ID.unique()
+# hover_data = ['NAME', 'LAT',  'LON', 'CAT',
+#               'USA_WIND', 'USA_PRES', 'ISO_TIME']
 
-# tc = df.TC_ID.unique()
-
-# for i, tc_i in enumerate(tc):
-#     df_i = df[df.TC_ID == tc]
+# for i, dist_i in enumerate(disturbance):
+#     df_i = df[df.TC_ID == dist_i]
 #     if i == 0:
-#         figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON", zoom=4,
-#                                     mapbox_style="carto-positron",
-#                                     hover_data=hover_data,
-#                                     height=800,
-#                                     color='USA_SSHS',
-#                                     color_continuous_scale=custom_color_scale,
-#                                     range_color=(-5, 5),
-#                                     size='SIZE', size_max=7.5
-#                                     )
+#         figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON",
+#                                    mapbox_style="carto-positron",
+#                                    hover_data=hover_data,
+#                                    height=800,
+#                                    color='USA_SSHS',
+#                                    color_continuous_scale=custom_color_scale,
+#                                    range_color=(-5, 5),
+#                                    size='SIZE', size_max=7.5,
+#                                    **centrer_prop[basin]
+#                                    )
 
 #     else:
 #         figure.add_trace(px.scatter_mapbox(
-#             df_i, lat="LAT", lon="LON", zoom=4,
+#             df_i, lat="LAT", lon="LON",
 #             hover_data=hover_data,
 #             color='USA_SSHS',
 #             color_continuous_scale=custom_color_scale,
 #             range_color=(-5, 5), size='SIZE', size_max=7.5,
+#              **centrer_prop[basin]
 #         ).data[0])
 
 # # Update the layout with custom colorbar title
@@ -365,3 +376,5 @@ if __name__ == "__main__":
 # # %%
 # .update_traces(
 #      line=dict(dash="dot", width=4),
+
+# %%

@@ -13,7 +13,7 @@ To use this application, follow these steps:
     
     Copy code
     
-    `pip install pandas plotly dash dash-bootstrap-components requests` 
+    `pip install pandas plotly dash dash-bootstrap-components requests dash-bootstrap-templates` 
     
 2.  **Clone the Repository**: Clone this repository to your local machine:
     
