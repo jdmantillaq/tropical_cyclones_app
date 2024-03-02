@@ -38,10 +38,9 @@ To use this application, follow these steps:
 
 ## File Structure
 
--   `app.py`: Main Python script containing the Dash application.
+-   `trop_app.py`: Main Python script containing the Dash application.
 -   `README.md`: Documentation file providing information about the application.
 -   `data/ibtracs.since1980.list.v04r00.csv`: CSV file containing tropical cyclone data.
--   `requirements.txt`: Text file listing the required Python libraries and their versions.
 
 ## Data Source
 
