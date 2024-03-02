@@ -42,7 +42,9 @@ def download_file(url, filename):
         print(f"Error downloading file: {e}")
 
 
-file_tc = os.path.join(os.path.dirname(__file__),
+# file_tc = os.path.join(os.path.dirname(__file__),
+#                        'data/ibtracs.since1980.list.v04r00.csv')
+file_tc = os.path.join(os.getcwd(),
                        'data/ibtracs.since1980.list.v04r00.csv')
 
 url = 'https://www.ncei.noaa.gov/data/'\
@@ -57,16 +59,16 @@ download_file_if_needed(url, file_tc)
 
 columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN',
                      'NAME', 'ISO_TIME', 'NATURE', 'LAT', 'LON', 'USA_WIND',
-                     'USA_PRES']
+                     'USA_PRES', 'USA_ATCF_ID', 'USA_SSHS']
 
 tropical_cyclones = pd.read_csv(
     file_tc, skiprows=[1], usecols=columns_to_import)
-tropical_cyclones = pd.read_csv(file_tc, skiprows=[1])
 tropical_cyclones['ISO_TIME'] = pd.to_datetime(tropical_cyclones['ISO_TIME'])
 tropical_cyclones['BASIN'] = tropical_cyclones['USA_ATCF_ID'].apply(
     lambda x: x[:2])
 tropical_cyclones['TC_ID'] = tropical_cyclones['USA_ATCF_ID'].apply(
     lambda x: x[2:4])
+
 
 basin_list = {
     'AL': 'North Atlantic',
