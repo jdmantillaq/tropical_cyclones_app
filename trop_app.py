@@ -244,7 +244,7 @@ app.layout = html.Div(
                         dbc.Tab(tab2_content, label="Max Wind Speed",
                                 tab_id="tab-2"),],
                              id="tabs",
-                             active_tab="tab-2",
+                             active_tab="tab-1",
                              )
                 ],
             ),
