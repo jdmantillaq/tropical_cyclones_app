@@ -56,7 +56,6 @@ download_file_if_needed(url, file_tc)
 
 #%%%
 
-
 columns_to_import = ['SID', 'SEASON', 'NUMBER', 'BASIN', 'SUBBASIN',
                      'NAME', 'ISO_TIME', 'NATURE', 'LAT', 'LON', 'USA_WIND',
                      'USA_PRES', 'USA_ATCF_ID', 'USA_SSHS']
@@ -68,7 +67,8 @@ tropical_cyclones['BASIN'] = tropical_cyclones['USA_ATCF_ID'].apply(
     lambda x: x[:2])
 tropical_cyclones['TC_ID'] = tropical_cyclones['USA_ATCF_ID'].apply(
     lambda x: x[2:4])
-
+tropical_cyclones['USA_WIND'] = tropical_cyclones['USA_WIND'].apply(
+    lambda x: float(x) if x.strip() else float('NaN'))
 
 basin_list = {
     'AL': 'North Atlantic',
@@ -149,11 +149,12 @@ category_dict = {
 season_list = tropical_cyclones.SEASON.unique()
 # %%
 
+
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY, dbc_css])
 
 load_figure_template("darkly")
-slider_style = {"font-size": "16px"}
+slider_style = {"font-size": "18px"}
 text_style = {"font-size": "20px"}
 
 
@@ -162,19 +163,20 @@ tab1_content = dbc.Card(
         [dbc.Row([
             dbc.Col([
                 html.P("Select a Basin:"),
-                dcc.Dropdown(id="dropdown_basin",
+                dcc.Dropdown(id="dropdown_basin_tab1",
                              options=[{'value': i, 'label': j} for i, j
                                       in basin_list.items()],
                              className="dbc", value="AL"),
                 html.P("Select a Season (year):"),
-                dcc.Dropdown(id="dropdown_season", options=season_list,
+                dcc.Dropdown(id="dropdown_season_tab1", options=season_list,
                              className="dbc", value=season_list[-2]),
                 html.P("Select a date range:"),
-                dcc.DatePickerRange(id="date_picker", className='dbc',
+                dcc.DatePickerRange(id="date_picker_tab1", className='dbc',
                                     display_format='DD/MM/YYYY',
                                     start_date_placeholder_text='DD/MM/YYYY'),
                 html.P("Select a disturbance:"),
-                dcc.Dropdown(id="dropdown_tc", multi=True, className="dbc")
+                dcc.Dropdown(id="dropdown_tc_tab1",
+                             multi=True, className="dbc")
 
 
             ], width=3),
@@ -186,6 +188,41 @@ tab1_content = dbc.Card(
 
 tab2_content = dbc.Card(
     dbc.CardBody(
+        [dbc.Row([
+            dbc.Col([
+                html.P("Select a Basin:"),
+                dcc.Dropdown(id="dropdown_basin_tab2",
+                             options=[{'value': i, 'label': j} for i, j
+                                      in basin_list.items()],
+                             className="dbc", value="AL"),
+
+                html.P("Select a time range:"),
+                dcc.RangeSlider(id='slider_season_tab2',
+                                className="dbc",
+                                min=season_list[0],
+                                max=season_list[-1],
+                                step=1,
+                                marks={i: {"label": f'{i}',
+                                           "style": slider_style} for i in
+                                       range(season_list[0],
+                                             season_list[-1] + 1, 5)},
+                                value=[season_list[0], season_list[-1]],
+                                tooltip={"placement": "bottom",
+                                         "always_visible": False},
+                                ),
+                dcc.Graph(id="graph_bar_tab2",
+                           hoverData={"points": [
+                                    {'customdata': ['ALLEN', 1980,
+                                                    'Category 5', 165]}]})
+
+            ], width=4),
+            dbc.Col([
+                html.H4(id="title_fig2", style={'text-align': 'center'}),
+                dcc.Graph(id="graph_map_tab2",
+                         )
+            ], width=8)]
+
+        )]
     )
 )
 
@@ -204,10 +241,10 @@ app.layout = html.Div(
                     dbc.Tabs([
                         dbc.Tab(tab1_content, label="Global Map",
                                 tab_id="tab-1"),
-                        dbc.Tab(tab2_content, label="Tab 2",
+                        dbc.Tab(tab2_content, label="Max Wind Speed",
                                 tab_id="tab-2"),],
                              id="tabs",
-                             active_tab="tab-1",
+                             active_tab="tab-2",
                              )
                 ],
             ),
@@ -216,21 +253,142 @@ app.layout = html.Div(
     ], style=text_style
 )
 
+# -----------------------------------------------------------------------------
+# Tab2
+# -----------------------------------------------------------------------------
+
+
+@app.callback(
+    [Output("graph_bar_tab2", 'figure')],
+    [Input("dropdown_basin_tab2", "value"),
+     Input('slider_season_tab2', 'value')])
+def fig_bar_tab2(basin, season):
+    if basin is None:
+        raise PreventUpdate
+    if season is None:
+        raise PreventUpdate
+    
+
+    df = tropical_cyclones.query(
+        '@season[0] <= SEASON <= @season[1] and BASIN == @basin')
+    df = df.groupby(['SEASON', 'TC_ID', 'NAME']).max(['USA_WIND'])
+    df = df.reset_index()
+    df = df.sort_values(by='USA_WIND', ascending=False).head(10)
+    df['CAT'] = df['USA_SSHS'].apply(lambda x: category_dict.get(x))
+
+    hover_data = ['NAME', 'SEASON', 'CAT', 'USA_WIND']
+
+    hover_template = \
+        "<span style='font-size: 16px;'><b>Name:</b> %{customdata[0]}</span><br>" + \
+        "<span style='font-size: 16px;'><b>Season:</b> %{customdata[1]}</span><br>" + \
+        "<span style='font-size: 16px;'><b>Type:</b> %{customdata[2]}</span><br>" + \
+        "<span style='font-size: 16px;'><b>Max Wind Speed:</b> %{customdata[3]} knots</span><br>"
+        
+    custom_ticks = np.arange(-5, 6)
+    custom_tick_labels = [category_dict.get(x) for x in custom_ticks]
+    
+    time_range = f'{season[0]}-{season[1]}' if season[0]!=season[1] else f'{season[0]}'
+    title = "Top 10 Cyclones by Maximum Wind Speed<br>"  +\
+        f"{basin_list[basin]} ({time_range})"
+    
+    figure = px.bar(df,
+                    x="NAME",
+                    y="USA_WIND",
+                    color='USA_SSHS',
+                    hover_data=hover_data,
+                    custom_data=hover_data,
+                    color_continuous_scale=custom_color_scale,
+                    range_color=(-5, 5),
+                    title=title,
+                    )
+    # Update layout with custom y-axis label
+    figure.update_layout(yaxis_title='Max Wind Speed [knots]')
+    
+
+    # Update the layout with custom colorbar title
+    figure.update_layout(coloraxis_colorbar=dict(title="",
+                                                 tickvals=custom_ticks,
+                                                 ticktext=custom_tick_labels,
+                                                 tickfont=dict(size=14)))
+    figure.update_traces(hovertemplate=hover_template)
+
+    return [figure]
+
+@app.callback(
+    [Output("title_fig2", 'children'),
+     Output("graph_map_tab2", 'figure')],
+    [Input("dropdown_basin_tab2", "value"),
+     Input("graph_bar_tab2", "hoverData")]
+)
+def fig_map_tab2(basin, hoverData):
+    name = hoverData["points"][0]["customdata"][0]
+    season = hoverData["points"][0]["customdata"][1]
+    cat =  hoverData["points"][0]["customdata"][2]
+    title = f'{name}: {season}'
+    
+    df = tropical_cyclones.query(
+            'BASIN == @basin and SEASON == @season and NAME in @name')
+    df['COLOR_TC'] = df['USA_SSHS'].apply(
+        lambda x: tc_colors.get(x, color_other))
+
+    df['SIZE'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
+    df['CAT'] = df['USA_SSHS'].apply(lambda x: category_dict.get(x))
+    hover_data = ['NAME', 'LAT',  'LON', 'CAT',
+                  'USA_WIND', 'USA_PRES', 'ISO_TIME']
+    
+    custom_ticks = np.arange(-5, 6)
+    custom_tick_labels = [category_dict.get(x) for x in custom_ticks]
+    
+    
+    for i, dist_i in enumerate(df.TC_ID.unique()):
+        df_i = df[df.TC_ID == dist_i]
+        if i == 0:
+            figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON",
+                                       mapbox_style="carto-positron",
+                                       hover_data=hover_data,
+                                       height=800,
+                                       color='USA_SSHS',
+                                       color_continuous_scale=custom_color_scale,
+                                       range_color=(-5, 5),
+                                       size='SIZE', size_max=7.5,
+                                       zoom=3,
+                                       )
+
+        else:
+            figure.add_trace(px.scatter_mapbox(
+                df_i, lat="LAT", lon="LON",
+                hover_data=hover_data,
+                color='USA_SSHS',
+                color_continuous_scale=custom_color_scale,
+                range_color=(-5, 5), size='SIZE', size_max=7.5,
+                zoom=3,
+            ).data[0])
+    
+    figure.update_layout(coloraxis_colorbar=dict(title="",
+                                                 tickvals=custom_ticks,
+                                                 ticktext=custom_tick_labels,
+                                                 tickfont=dict(size=16)))
+
+    figure.update_traces(mode="markers+lines")
+    figure.update_traces(marker=dict(opacity=1))
+    return title, figure
+
+
 
 # -----------------------------------------------------------------------------
 # Tab1
 # -----------------------------------------------------------------------------
 @app.callback(
-    [Output("date_picker", 'min_date_allowed'),
-     Output("date_picker", 'max_date_allowed'),
-     Output("date_picker", 'initial_visible_month'),
-     Output("date_picker", 'start_date'),
-     Output("date_picker", 'end_date'),
-     Output("dropdown_tc", "options"),
-     Output("dropdown_tc", "value")],
-    [Input("dropdown_basin", "value"),
-     Input("dropdown_season", "value")])
-def set_country_options(basin, season):
+    [Output("date_picker_tab1", 'min_date_allowed'),
+     Output("date_picker_tab1", 'max_date_allowed'),
+     Output("date_picker_tab1", 'initial_visible_month'),
+     Output("date_picker_tab1", 'start_date'),
+     Output("date_picker_tab1", 'end_date'),
+     Output("dropdown_tc_tab1", "options"),
+     Output("dropdown_tc_tab1", "value")],
+    [Input("dropdown_basin_tab1", "value"),
+     Input("dropdown_season_tab1", "value")])
+def set_dates_options(basin, season):
     if basin is None:
         raise PreventUpdate
     if season is None:
@@ -250,12 +408,12 @@ def set_country_options(basin, season):
 
 
 @app.callback(
-    [Output("dropdown_tc", "options", allow_duplicate=True),
-     Output("dropdown_tc", "value", allow_duplicate=True)],
-    [Input("dropdown_basin", "value"),
-     Input("dropdown_season", "value"),
-     Input("date_picker", "start_date"),
-     Input("date_picker", "end_date")], prevent_initial_call=True)
+    [Output("dropdown_tc_tab1", "options", allow_duplicate=True),
+     Output("dropdown_tc_tab1", "value", allow_duplicate=True)],
+    [Input("dropdown_basin_tab1", "value"),
+     Input("dropdown_season_tab1", "value"),
+     Input("date_picker_tab1", "start_date"),
+     Input("date_picker_tab1", "end_date")], prevent_initial_call=True)
 def set_disturbance_options(basin, season, start_date, end_date):
     if not all([basin, season, start_date, end_date]):
         raise PreventUpdate
@@ -268,11 +426,11 @@ def set_disturbance_options(basin, season, start_date, end_date):
 @app.callback(
     [Output("title_fig1", 'children'),
      Output("graph_tab1", 'figure')],
-    [Input("dropdown_basin", "value"),
-     Input("dropdown_season", "value"),
-     Input("dropdown_tc", "value"),
-     Input("date_picker", "start_date"),
-     Input("date_picker", "end_date")],
+    [Input("dropdown_basin_tab1", "value"),
+     Input("dropdown_season_tab1", "value"),
+     Input("dropdown_tc_tab1", "value"),
+     Input("date_picker_tab1", "start_date"),
+     Input("date_picker_tab1", "end_date")],
 )
 def fig_map(basin, season, disturbance, start_date, end_date):
     if not all([basin, season, disturbance, start_date, end_date]):
@@ -302,6 +460,9 @@ def fig_map(basin, season, disturbance, start_date, end_date):
         "<span style='font-size: 16px;'><b>Max Wind Speed:</b> %{customdata[4]} knots</span><br>" + \
         "<span style='font-size: 16px;'><b>Pressure:</b> %{customdata[5]} mb</span><br>" + \
         "<span style='font-size: 16px;'><b>Time:</b> %{customdata[6]}</span><extra></extra>"
+        
+    custom_ticks = np.arange(-5, 6)
+    custom_tick_labels = [category_dict.get(x) for x in custom_ticks]
 
     for i, dist_i in enumerate(disturbance):
         df_i = df[df.TC_ID == dist_i]
@@ -328,7 +489,11 @@ def fig_map(basin, season, disturbance, start_date, end_date):
             ).data[0])
 
     # Update the layout with custom colorbar title
-    figure.update_layout(coloraxis_colorbar=dict(title="Category"))
+    # figure.update_layout(coloraxis_colorbar=dict(title="Category"))
+    figure.update_layout(coloraxis_colorbar=dict(title="",
+                                                 tickvals=custom_ticks,
+                                                 ticktext=custom_tick_labels,
+                                                 tickfont=dict(size=16)))
 
     figure.update_traces(mode="markers+lines")
     figure.update_traces(marker=dict(opacity=1))
@@ -341,61 +506,4 @@ def fig_map(basin, season, disturbance, start_date, end_date):
 if __name__ == "__main__":
     app.run_server(port=8335, host='0.0.0.0')
 
-# %%
-# ['SH', 'WP', 'EP', 'AL', 'IO', 'CP', 'SL', 'SP', 'SI', 'BB', 'AS']
-
-
-# basin = 'BB'
-# season = 2023
-# query = (tropical_cyclones.BASIN == basin) & (
-#     tropical_cyclones.SEASON == season)
-
-# # query = (tropical_cyclones.SEASON == season)
-# df = tropical_cyclones[query]
-# df.head()
-# df['COLOR_TC'] = df['USA_SSHS'].apply(lambda x: tc_colors.get(x, color_other))
-# df['CAT'] = df['USA_SSHS'].apply(lambda x: category_dict.get(x))
-# df['SIZE'] = df['USA_SSHS'].apply(lambda x: size_marker_TC.get(x, 6))
-
-# disturbance = df.TC_ID.unique()
-# hover_data = ['NAME', 'LAT',  'LON', 'CAT',
-#               'USA_WIND', 'USA_PRES', 'ISO_TIME']
-
-# for i, dist_i in enumerate(disturbance):
-#     df_i = df[df.TC_ID == dist_i]
-#     if i == 0:
-#         figure = px.scatter_mapbox(df_i, lat="LAT", lon="LON",
-#                                    mapbox_style="carto-positron",
-#                                    hover_data=hover_data,
-#                                    height=800,
-#                                    color='USA_SSHS',
-#                                    color_continuous_scale=custom_color_scale,
-#                                    range_color=(-5, 5),
-#                                    size='SIZE', size_max=7.5,
-#                                    **centrer_prop[basin]
-#                                    )
-
-#     else:
-#         figure.add_trace(px.scatter_mapbox(
-#             df_i, lat="LAT", lon="LON",
-#             hover_data=hover_data,
-#             color='USA_SSHS',
-#             color_continuous_scale=custom_color_scale,
-#             range_color=(-5, 5), size='SIZE', size_max=7.5,
-#              **centrer_prop[basin]
-#         ).data[0])
-
-# # Update the layout with custom colorbar title
-# figure.update_layout(coloraxis_colorbar=dict(title="Category"))
-
-# figure.update_traces(mode="markers+lines")
-# figure.update_traces(marker=dict(opacity=1))
-
-# #%%
-# figure.data.marker.line.width = 4
-# figure.data.marker.line.color = "black"
-# # %%
-# .update_traces(
-#      line=dict(dash="dot", width=4),
-
-# %%
+#%%
