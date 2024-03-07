@@ -152,6 +152,7 @@ season_list = tropical_cyclones.SEASON.unique()
 
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY, dbc_css])
+app.title = 'jdmantillaq'
 
 load_figure_template("darkly")
 slider_style = {"font-size": "18px"}
